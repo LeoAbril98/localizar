@@ -303,6 +303,9 @@ export default function App() {
                     <video 
                       ref={videoRef} 
                       className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      playsInline
                     />
                     
                     {/* Scanner UI Elements */}
