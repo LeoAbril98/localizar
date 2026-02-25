@@ -127,18 +127,23 @@ export default function App() {
     setError(null);
 
     try {
-      const videoInputDevices = await codeReaderRef.current.listVideoInputDevices();
-      // Prefer back camera if available
-      const selectedDeviceId = videoInputDevices.length > 1 
-        ? videoInputDevices.find(device => device.label.toLowerCase().includes('back'))?.deviceId || videoInputDevices[0].deviceId
-        : videoInputDevices[0]?.deviceId;
-
-      if (!selectedDeviceId) {
-        throw new Error("Nenhuma câmera encontrada.");
+      // Check if mediaDevices is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Seu navegador não suporta acesso à câmera.");
       }
 
-      codeReaderRef.current.decodeFromVideoDevice(
-        selectedDeviceId,
+      // Use constraints to prefer the back camera (environment)
+      // This is more reliable than picking from a list of IDs
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+
+      await codeReaderRef.current.decodeFromConstraints(
+        constraints,
         videoRef.current!,
         (result: Result | null, err?: Error) => {
           if (result) {
@@ -148,15 +153,24 @@ export default function App() {
             stopScanner();
           }
           if (err && !(err.name === 'NotFoundException')) {
-            // Only log real errors, not "no code found in frame"
-            console.error(err);
+            // Ignore NotFoundException as it's just "no barcode in this frame"
           }
         }
       );
-    } catch (err) {
-      setError("Erro ao acessar a câmera. Verifique as permissões.");
+    } catch (err: any) {
+      console.error("Camera Error:", err);
+      let msg = "Erro ao acessar a câmera.";
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        msg = "Acesso negado. Por favor, permita o uso da câmera nas configurações do seu navegador.";
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        msg = "Nenhuma câmera encontrada no dispositivo.";
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        msg = "A câmera está sendo usada por outro aplicativo.";
+      }
+      
+      setError(msg);
       setIsScanning(false);
-      console.error(err);
     }
   };
 
